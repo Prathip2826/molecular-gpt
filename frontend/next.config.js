@@ -1,11 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['pubchem.ncbi.nlm.nih.gov', 'firebasestorage.googleapis.com'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'pubchem.ncbi.nlm.nih.gov' },
+      { protocol: 'https', hostname: 'firebasestorage.googleapis.com' },
+    ],
   },
-  experimental: {
-    serverComponentsExternalPackages: [],
-  },
+  serverExternalPackages: [],
 }
 
 module.exports = nextConfig
