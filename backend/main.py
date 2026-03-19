@@ -9,26 +9,26 @@ from database import create_tables
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # DB error வந்தாலும் app start ஆகும்
     await create_tables()
-    print("✅ DB ready")
     yield
 
 app = FastAPI(title="Molecular GPT API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://*.vercel.app"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-app.include_router(molecules.router, prefix="/molecules", tags=["Molecules"])
-app.include_router(chat.router, prefix="/chat", tags=["Chat"])
-app.include_router(experiments.router, prefix="/experiments", tags=["Experiments"])
-app.include_router(research.router, prefix="/research", tags=["Research"])
-app.include_router(molecule_tools.router, prefix="/tools", tags=["Molecule Tools"])
+app.include_router(molecules.router,      prefix="/molecules",  tags=["Molecules"])
+app.include_router(chat.router,           prefix="/chat",        tags=["Chat"])
+app.include_router(experiments.router,    prefix="/experiments", tags=["Experiments"])
+app.include_router(research.router,       prefix="/research",    tags=["Research"])
+app.include_router(molecule_tools.router, prefix="/tools",       tags=["Tools"])
 
 @app.get("/")
 def root():

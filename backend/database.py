@@ -5,17 +5,35 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/molecular_gpt")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/molecular_gpt"
+)
 
-engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
-AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    connect_args={"ssl": "require"},
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    expire_on_commit=False,
+    class_=AsyncSession,
+)
 
 class Base(DeclarativeBase):
     pass
 
 async def create_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("✅ DB tables ready")
+    except Exception as e:
+        print(f"⚠️ DB connection issue: {e}")
+        print("Starting without DB - API still works")
 
 async def get_db():
     async with AsyncSessionLocal() as session:

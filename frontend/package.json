@@ -20,7 +20,7 @@
     "@types/three": "^0.167.0",
     "axios": "^1.7.3",
     "clsx": "^2.1.1",
-    "firebase": "^10.12.4",
+    "firebase": "^10.14.1",
     "framer-motion": "^11.3.19",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
