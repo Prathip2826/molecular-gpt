@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Header } from '@/components/layout/header';
 import { useUserStore } from '@/store/userStore';
@@ -13,6 +13,20 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState(true);
   const [aiTemp, setAiTemp] = useState(0.7);
   const [responseLen, setResponseLen] = useState('medium');
+
+  // Load from localStorage
+  useEffect(() => {
+    const savedTemp = localStorage.getItem('aiTemp');
+    const savedLen = localStorage.getItem('responseLen');
+    if (savedTemp) setAiTemp(parseFloat(savedTemp));
+    if (savedLen) setResponseLen(savedLen);
+  }, []);
+
+  const saveAISettings = () => {
+    localStorage.setItem('aiTemp', aiTemp.toString());
+    localStorage.setItem('responseLen', responseLen);
+    toast.success('AI Settings saved! ✅');
+  };
 
   const handleResetPassword = async () => {
     if (!user?.email) return;
@@ -68,39 +82,32 @@ export default function SettingsPage() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--text-secondary)' }}>Response Length</label>
+            <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--text-secondary)' }}>
+              Response Length
+            </label>
             <div className="flex gap-2">
               {['short', 'medium', 'long'].map((len) => (
                 <button
                   key={len}
                   onClick={() => setResponseLen(len)}
-                  className={`flex-1 py-2 rounded-xl text-xs capitalize transition-all ${
-                    responseLen === len ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'hover:bg-white/5'
-                  }`}
-                  style={{ border: responseLen === len ? '' : '1px solid var(--border)', color: responseLen === len ? '#60a5fa' : 'var(--text-secondary)' }}
+                  className={`flex-1 py-2 rounded-xl text-xs capitalize transition-all`}
+                  style={{
+                    background: responseLen === len ? 'rgba(59,130,246,0.2)' : 'transparent',
+                    border: `1px solid ${responseLen === len ? 'rgba(59,130,246,0.4)' : 'var(--border)'}`,
+                    color: responseLen === len ? '#60a5fa' : 'var(--text-secondary)',
+                  }}
                 >
                   {len}
                 </button>
               ))}
             </div>
           </div>
-          <div>
-            <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--text-secondary)' }}>HuggingFace API Key</label>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                placeholder="hf_..."
-                defaultValue=""
-                className="input-neon flex-1 px-3 py-2 rounded-xl text-sm font-mono"
-              />
-              <button onClick={() => toast.success('API key saved (add to .env.local)')} className="btn-neon px-4 py-2 rounded-xl text-xs flex items-center gap-1">
-                <Save size={12} /> Save
-              </button>
-            </div>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              Free key at: huggingface.co/settings/tokens
-            </p>
-          </div>
+          <button
+            onClick={saveAISettings}
+            className="btn-neon w-full py-2 rounded-xl text-xs flex items-center justify-center gap-2"
+          >
+            <Save size={12} /> Save AI Settings
+          </button>
         </div>
       ),
     },
@@ -127,6 +134,12 @@ export default function SettingsPage() {
       icon: User,
       content: (
         <div className="space-y-3">
+          <div className="p-4 rounded-xl" style={{ background: 'var(--bg-secondary)' }}>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Logged in as</div>
+            <div className="text-sm font-medium mt-1" style={{ color: 'var(--text-primary)' }}>
+              {user?.email || 'Not logged in'}
+            </div>
+          </div>
           <button
             onClick={handleResetPassword}
             className="w-full text-left px-4 py-3 rounded-xl flex items-center justify-between hover:bg-white/5 transition-colors"

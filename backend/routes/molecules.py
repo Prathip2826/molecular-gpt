@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import text
 from pydantic import BaseModel
 from typing import Optional, List
+import uuid, json
 from database import get_db
-from models.models import Molecule
 
 router = APIRouter()
 
@@ -19,39 +19,58 @@ class MoleculeCreate(BaseModel):
 
 @router.get("")
 async def get_molecules(user_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Molecule).where(Molecule.user_id == user_id).order_by(Molecule.created_at.desc())
-    )
-    molecules = result.scalars().all()
-    return [{"id": m.id, "name": m.name, "formula": m.formula,
-             "smiles": m.smiles, "tags": m.tags, "createdAt": str(m.created_at)} for m in molecules]
+    try:
+        result = await db.execute(
+            text("SELECT id, name, formula, smiles, tags, created_at FROM molecules WHERE user_id = :uid ORDER BY created_at DESC"),
+            {"uid": user_id}
+        )
+        rows = result.fetchall()
+        return [{"id": r[0], "name": r[1], "formula": r[2], "smiles": r[3], "tags": r[4], "createdAt": str(r[5])} for r in rows]
+    except Exception as e:
+        print(f"Get molecules error: {e}")
+        return []
 
 @router.post("")
 async def create_molecule(data: MoleculeCreate, db: AsyncSession = Depends(get_db)):
-    mol = Molecule(
-        user_id=data.user_id, name=data.name, formula=data.formula,
-        smiles=data.smiles, description=data.description,
-        properties=data.properties, tags=data.tags
-    )
-    db.add(mol)
-    await db.commit()
-    await db.refresh(mol)
-    return {"id": mol.id, "message": "Molecule saved"}
+    try:
+        mol_id = str(uuid.uuid4())
+        # Use ORM instead of raw SQL
+        from models.models import Molecule
+        mol = Molecule(
+            id=mol_id,
+            user_id=data.user_id,
+            name=data.name,
+            formula=data.formula or "",
+            smiles=data.smiles,
+            description=data.description or "",
+            properties={},
+            tags=[],
+        )
+        db.add(mol)
+        await db.commit()
+        return {"id": mol_id, "message": "Molecule saved"}
+    except Exception as e:
+        print(f"Save molecule error: {e}")
+        await db.rollback()
+        return {"error": str(e)}
 
 @router.delete("/{molecule_id}")
 async def delete_molecule(molecule_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Molecule).where(Molecule.id == molecule_id))
-    mol = result.scalar_one_or_none()
-    if not mol:
-        raise HTTPException(status_code=404, detail="Molecule not found")
-    await db.delete(mol)
-    await db.commit()
-    return {"message": "Deleted"}
+    try:
+        await db.execute(text("DELETE FROM molecules WHERE id = :id"), {"id": molecule_id})
+        await db.commit()
+        return {"message": "Deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/search")
 async def search_molecules(q: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Molecule).where(Molecule.name.ilike(f"%{q}%"))
-    )
-    molecules = result.scalars().all()
-    return molecules
+    try:
+        result = await db.execute(
+            text("SELECT id, name, formula, smiles FROM molecules WHERE name ILIKE :q"),
+            {"q": f"%{q}%"}
+        )
+        rows = result.fetchall()
+        return [{"id": r[0], "name": r[1], "formula": r[2], "smiles": r[3]} for r in rows]
+    except Exception as e:
+        return []

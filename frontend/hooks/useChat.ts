@@ -1,9 +1,15 @@
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import type { ChatMessage } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: string;
+}
 
 export function useChat() {
   const { user } = useAuth();
@@ -18,7 +24,58 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
+  // ── Load past sessions ──────────────────────────────────
+  const loadSessions = useCallback(async () => {
+    if (!user) return;
+    setSessionsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/chat/sessions?user_id=${user.uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSessions(data);
+      }
+    } catch (e) {
+      console.error('Failed to load sessions:', e);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [user]);
+
+  // Load sessions when user logs in
+  useEffect(() => {
+    if (user) loadSessions();
+  }, [user, loadSessions]);
+
+  // ── Load messages for a session ─────────────────────────
+  const loadSession = useCallback(async (sid: string) => {
+    try {
+      const res = await fetch(`${API_URL}/chat/${sid}/messages`);
+      if (res.ok) {
+        const data = await res.json();
+        const loaded: ChatMessage[] = data.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+          isStreaming: false,
+        }));
+        setMessages(loaded.length > 0 ? loaded : [{
+          id: '1',
+          role: 'assistant',
+          content: 'Continue your chemistry exploration! 🧬',
+          timestamp: new Date().toISOString(),
+        }]);
+        setSessionId(sid);
+      }
+    } catch (e) {
+      console.error('Failed to load session:', e);
+    }
+  }, []);
+
+  // ── Create new session ──────────────────────────────────
   const getOrCreateSession = useCallback(async () => {
     if (sessionId) return sessionId;
     if (!user) return null;
@@ -30,13 +87,16 @@ export function useChat() {
       });
       const data = await res.json();
       setSessionId(data.id);
+      // Refresh sessions list
+      loadSessions();
       return data.id;
     } catch {
       return null;
     }
-  }, [sessionId, user]);
+  }, [sessionId, user, loadSessions]);
 
-  const sendMessage = useCallback(async (content: string) => {
+  // ── Send message ────────────────────────────────────────
+ const sendMessage = useCallback(async (content: string) => {
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -48,14 +108,18 @@ export function useChat() {
     setError(null);
 
     const aiMsgId = (Date.now() + 1).toString();
-    const aiMsg: ChatMessage = {
+    setMessages((prev) => [...prev, {
       id: aiMsgId,
       role: 'assistant',
       content: '',
       timestamp: new Date().toISOString(),
       isStreaming: true,
-    };
-    setMessages((prev) => [...prev, aiMsg]);
+    }]);
+
+    // ✅ Get AI settings from localStorage
+    const aiTemp = parseFloat(localStorage.getItem('aiTemp') || '0.7');
+    const responseLen = localStorage.getItem('responseLen') || 'medium';
+    const maxTokens = responseLen === 'short' ? 512 : responseLen === 'long' ? 2048 : 1024;
 
     try {
       const sid = await getOrCreateSession();
@@ -66,10 +130,14 @@ export function useChat() {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({ 
+          message: content,
+          temperature: aiTemp,
+          max_tokens: maxTokens,
+        }),
       });
       const data = await res.json();
-      let generatedText = data.response || data.text || 'No response received.';
+      const generatedText = data.response || data.text || 'No response received.';
 
       // Simulate streaming
       let displayed = '';
@@ -77,10 +145,9 @@ export function useChat() {
         displayed += generatedText[i];
         const snap = displayed;
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id === aiMsgId
-              ? { ...m, content: snap, isStreaming: i < generatedText.length - 1 }
-              : m
+          prev.map((m) => m.id === aiMsgId
+            ? { ...m, content: snap, isStreaming: i < generatedText.length - 1 }
+            : m
           )
         );
         if (i % 3 === 0) await new Promise((r) => setTimeout(r, 15));
@@ -88,7 +155,7 @@ export function useChat() {
       setMessages((prev) =>
         prev.map((m) => (m.id === aiMsgId ? { ...m, isStreaming: false } : m))
       );
-    } catch (err) {
+    } catch {
       setError('Failed to get AI response.');
       setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
     } finally {
@@ -96,6 +163,7 @@ export function useChat() {
     }
   }, [getOrCreateSession]);
 
+  // ── Clear / New chat ────────────────────────────────────
   const clearMessages = useCallback(() => {
     setSessionId(null);
     setMessages([{
@@ -106,5 +174,27 @@ export function useChat() {
     }]);
   }, []);
 
-  return { messages, isLoading, error, sendMessage, clearMessages };
+  // ── Delete session ──────────────────────────────────────
+  const deleteSession = useCallback(async (sid: string) => {
+    try {
+      await fetch(`${API_URL}/chat/session/${sid}`, { method: 'DELETE' });
+      setSessions((prev) => prev.filter((s) => s.id !== sid));
+      if (sessionId === sid) clearMessages();
+    } catch (e) {
+      console.error('Delete failed:', e);
+    }
+  }, [sessionId, clearMessages]);
+
+  return {
+    messages,
+    isLoading,
+    error,
+    sendMessage,
+    clearMessages,
+    sessions,
+    sessionsLoading,
+    loadSession,
+    deleteSession,
+    currentSessionId: sessionId,
+  };
 }

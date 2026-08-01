@@ -51,9 +51,27 @@ export function useMolecule() {
     setViewerSMILES(smiles);
   }, [setViewerSMILES]);
 
-  const saveMolecule = useCallback((molecule: Molecule) => {
-    addMolecule(molecule);
-  }, [addMolecule]);
+  const saveMolecule = useCallback(async (molecule: Molecule) => {
+  addMolecule(molecule);
+  try {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL;
+    await fetch(`${API_URL}/molecules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: molecule.userId,
+        name: molecule.name,
+        smiles: molecule.smiles,
+        formula: molecule.formula,
+        description: molecule.description || '',
+        properties: molecule.properties || {},
+        tags: molecule.tags || [],
+      }),
+    });
+  } catch (e) {
+    console.error('Save failed:', e);
+  }
+}, [addMolecule]);
 
   // Common molecules quick load
   const commonMolecules = [
@@ -77,3 +95,4 @@ export function useMolecule() {
     saveMolecule,
   };
 }
+

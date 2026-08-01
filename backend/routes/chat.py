@@ -1,97 +1,143 @@
 import os
+import uuid
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import text
 from pydantic import BaseModel
 from database import get_db
-from models.models import ChatSession, ChatMessage
 
 router = APIRouter()
 
-HF_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
-HF_MODEL = "mistralai/Mistral-7B-Instruct-v0.3"
-
 class MessageCreate(BaseModel):
     message: str
+    temperature: float = 0.7
+    max_tokens: int = 1024
 
 class SessionCreate(BaseModel):
     user_id: str
 
 @router.post("/session")
 async def create_session(data: SessionCreate, db: AsyncSession = Depends(get_db)):
-    session = ChatSession(user_id=data.user_id)
-    db.add(session)
-    await db.commit()
-    await db.refresh(session)
-    return {"id": session.id, "title": session.title}
+    try:
+        session_id = str(uuid.uuid4())
+        await db.execute(
+            text("INSERT INTO chat_sessions (id, user_id, title) VALUES (:id, :uid, :title)"),
+            {"id": session_id, "uid": data.user_id, "title": "New Chat"}
+        )
+        await db.commit()
+        return {"id": session_id, "title": "New Chat"}
+    except Exception as e:
+        return {"id": None, "error": str(e)}
 
 @router.get("/sessions")
 async def get_sessions(user_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.created_at.desc())
-    )
-    sessions = result.scalars().all()
-    return [{"id": s.id, "title": s.title, "createdAt": str(s.created_at)} for s in sessions]
+    try:
+        result = await db.execute(
+            text("SELECT id, title, created_at FROM chat_sessions WHERE user_id = :uid ORDER BY created_at DESC"),
+            {"uid": user_id}
+        )
+        rows = result.fetchall()
+        return [{"id": r[0], "title": r[1], "createdAt": str(r[2])} for r in rows]
+    except Exception as e:
+        return []
 
 @router.get("/{session_id}/messages")
 async def get_messages(session_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at)
-    )
-    msgs = result.scalars().all()
-    return [{"id": m.id, "role": m.role, "content": m.content, "timestamp": str(m.created_at)} for m in msgs]
+    try:
+        result = await db.execute(
+            text("SELECT id, role, content, created_at FROM chat_messages WHERE session_id = :sid ORDER BY created_at"),
+            {"sid": session_id}
+        )
+        rows = result.fetchall()
+        return [{"id": r[0], "role": r[1], "content": r[2], "timestamp": str(r[3])} for r in rows]
+    except Exception as e:
+        return []
 
 @router.post("/{session_id}/message")
 async def send_message(session_id: str, data: MessageCreate, db: AsyncSession = Depends(get_db)):
-    # Save user message
-    user_msg = ChatMessage(session_id=session_id, role="user", content=data.message)
-    db.add(user_msg)
-
-    # Call HuggingFace
-    prompt = f"""<s>[INST] You are a helpful chemistry AI assistant specialized in molecular science, drug discovery, and chemical reactions. Answer clearly and scientifically.
-
-{data.message} [/INST]"""
-
+    groq_key = os.getenv("GROQ_API_KEY", "")
     ai_response = ""
+
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"https://api-inference.huggingface.co/models/{HF_MODEL}",
-                headers={"Authorization": f"Bearer {HF_API_KEY}"},
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
                 json={
-                    "inputs": prompt,
-                    "parameters": {
-                        "max_new_tokens": 512,
-                        "temperature": 0.7,
-                        "top_p": 0.9,
-                        "repetition_penalty": 1.1,
-                    }
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful chemistry AI assistant specialized in molecular science, drug discovery, and chemical reactions."},
+                        {"role": "user", "content": data.message}
+                    ],
+                    "max_tokens": data.max_tokens,
+                    "temperature": data.temperature,
                 }
             )
             result = response.json()
-            if isinstance(result, list) and result[0].get("generated_text"):
-                text = result[0]["generated_text"]
-                idx = text.rfind("[/INST]")
-                ai_response = text[idx + 7:].strip() if idx != -1 else text
-            else:
-                ai_response = "Model is loading. Please try again in ~20 seconds."
+            ai_response = result["choices"][0]["message"]["content"]
     except Exception as e:
-        ai_response = f"AI service temporarily unavailable. Error: {str(e)}"
+        ai_response = f"Error: {str(e)}"
 
-    # Save AI response
-    ai_msg = ChatMessage(session_id=session_id, role="assistant", content=ai_response)
-    db.add(ai_msg)
-    await db.commit()
+    try:
+        count_result = await db.execute(
+            text("SELECT COUNT(*) FROM chat_messages WHERE session_id = :sid"),
+            {"sid": session_id}
+        )
+        count = count_result.scalar()
+        if count == 0:
+            title = data.message[:60] + ("..." if len(data.message) > 60 else "")
+            await db.execute(
+                text("UPDATE chat_sessions SET title = :title WHERE id = :id"),
+                {"title": title, "id": session_id}
+            )
+
+        user_msg_id = str(uuid.uuid4())
+        ai_msg_id = str(uuid.uuid4())
+        await db.execute(
+            text("INSERT INTO chat_messages (id, session_id, role, content) VALUES (:id, :sid, :role, :content)"),
+            {"id": user_msg_id, "sid": session_id, "role": "user", "content": data.message}
+        )
+        await db.execute(
+            text("INSERT INTO chat_messages (id, session_id, role, content) VALUES (:id, :sid, :role, :content)"),
+            {"id": ai_msg_id, "sid": session_id, "role": "assistant", "content": ai_response}
+        )
+        await db.commit()
+    except Exception as e:
+        print(f"DB save error: {e}")
 
     return {"response": ai_response, "session_id": session_id}
 
 @router.delete("/session/{session_id}")
 async def delete_session(session_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
-    session = result.scalar_one_or_none()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    await db.delete(session)
-    await db.commit()
-    return {"message": "Deleted"}
+    try:
+        await db.execute(text("DELETE FROM chat_messages WHERE session_id = :id"), {"id": session_id})
+        await db.execute(text("DELETE FROM chat_sessions WHERE id = :id"), {"id": session_id})
+        await db.commit()
+        return {"message": "Deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/simple")
+async def simple_chat(data: MessageCreate):
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful chemistry AI assistant."},
+                        {"role": "user", "content": data.message}
+                    ],
+                    "max_tokens": data.max_tokens,
+                    "temperature": data.temperature,
+                }
+            )
+            result = response.json()
+            return {"response": result["choices"][0]["message"]["content"]}
+    except Exception as e:
+        return {"response": f"Error: {str(e)}"}
+        

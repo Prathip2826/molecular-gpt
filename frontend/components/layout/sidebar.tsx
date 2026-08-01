@@ -5,22 +5,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, MessageSquare, Hammer, Eye, BookOpen,
   FlaskConical, Beaker, Bookmark, History, User, Settings,
-  Atom, LogOut, Moon, Sun, X, Menu,
+  Atom, LogOut, Moon, Sun, X, Menu, Pill, Grid,
 } from 'lucide-react';
 import { useUserStore } from '@/store/userStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 
 const navItems = [
-  { href: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/chat',        icon: MessageSquare,   label: 'Molecular Chat' },
-  { href: '/builder',     icon: Hammer,          label: 'Molecule Builder' },
-  { href: '/visualizer',  icon: Eye,             label: 'Visualizer' },
-  { href: '/experiments', icon: FlaskConical,    label: 'Experiments' },
-  { href: '/research',    icon: BookOpen,        label: 'Research Library' },
-  { href: '/lab',         icon: Beaker,          label: 'AI Lab' },
-  { href: '/saved',       icon: Bookmark,        label: 'Saved Molecules' },
-  { href: '/history',     icon: History,         label: 'History' },
+  { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/chat',         icon: MessageSquare,   label: 'Molecular Chat' },
+  { href: '/builder',      icon: Hammer,          label: 'Molecule Builder' },
+  { href: '/visualizer',   icon: Eye,             label: 'Visualizer' },
+  { href: '/experiments',  icon: FlaskConical,    label: 'Experiments' },
+  { href: '/pharmacology', icon: Pill,            label: 'Drug Library' },
+  { href: '/research',     icon: BookOpen,        label: 'Research Library' },
+  { href: '/lab',          icon: Beaker,          label: 'AI Lab' },
+  { href: '/periodic-table', icon: Grid, label: 'Periodic Table' },
+  { href: '/saved',        icon: Bookmark,        label: 'Saved Molecules' },
+  { href: '/history',      icon: History,         label: 'History' },
 ];
 
 const bottomItems = [
@@ -40,7 +42,6 @@ export function Sidebar() {
   };
 
   const handleNavClick = () => {
-    // Mobile-ல் nav click பண்ணா close ஆகும்
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       toggleSidebar();
     }
@@ -78,12 +79,11 @@ export function Sidebar() {
               borderRight: '1px solid var(--border)',
             }}
           >
-            {/* ── Logo ── */}
+            {/* Logo */}
             <div
               className="flex items-center justify-between px-4 h-16 flex-shrink-0"
               style={{ borderBottom: '1px solid var(--border)' }}
             >
-              {/* Logo — click → home */}
               <Link href="/dashboard" onClick={handleNavClick}>
                 <div className="flex items-center gap-2.5 cursor-pointer group">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
@@ -94,19 +94,16 @@ export function Sidebar() {
                   </span>
                 </div>
               </Link>
-
-              {/* X close button */}
               <button
                 onClick={toggleSidebar}
                 className="p-1.5 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
                 style={{ color: 'var(--text-muted)' }}
-                title="Close sidebar"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* ── Nav ── */}
+            {/* Nav */}
             <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
               {navItems.map((item) => {
                 const isActive = pathname === item.href;
@@ -114,7 +111,7 @@ export function Sidebar() {
                   <Link key={item.href} href={item.href} onClick={handleNavClick}>
                     <motion.div
                       whileHover={{ x: 3 }}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer group`}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer"
                       style={{
                         background: isActive ? 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(168,85,247,0.18))' : 'transparent',
                         border: isActive ? '1px solid rgba(59,130,246,0.35)' : '1px solid transparent',
@@ -140,12 +137,11 @@ export function Sidebar() {
               })}
             </nav>
 
-            {/* ── Bottom ── */}
+            {/* Bottom */}
             <div
               className="p-3 space-y-0.5 flex-shrink-0"
               style={{ borderTop: '1px solid var(--border)' }}
             >
-              {/* Theme toggle */}
               <button
                 onClick={toggleTheme}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl w-full hover:bg-white/5 transition-colors"
@@ -159,7 +155,6 @@ export function Sidebar() {
                 </span>
               </button>
 
-              {/* Profile + Settings */}
               {bottomItems.map((item) => {
                 const isActive = pathname === item.href;
                 return (
@@ -184,7 +179,6 @@ export function Sidebar() {
                 );
               })}
 
-              {/* User info */}
               {user && (
                 <div className="pt-2 mt-1" style={{ borderTop: '1px solid var(--border)' }}>
                   <div className="flex items-center gap-3 px-3 py-2">
@@ -214,7 +208,7 @@ export function Sidebar() {
         )}
       </AnimatePresence>
 
-      {/* Floating open button — sidebar closed ஆனா இது தெரியும் */}
+      {/* Floating open button */}
       <AnimatePresence>
         {!sidebarOpen && (
           <motion.button
@@ -231,7 +225,6 @@ export function Sidebar() {
               color: 'var(--text-secondary)',
               boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
             }}
-            title="Open sidebar"
           >
             <Menu size={18} />
           </motion.button>

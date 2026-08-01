@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/header';
+import { useAuth } from '@/hooks/useAuth';
 import {
   FlaskConical, Zap, Shield, Search, BarChart2,
   Loader2, ChevronRight, CheckCircle2,
@@ -60,6 +61,7 @@ interface ExperimentResult {
 }
 
 export default function ExperimentsPage() {
+  const { user } = useAuth();
   const [selectedExp, setSelectedExp] = useState<typeof EXPERIMENTS[0] | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [isRunning, setIsRunning] = useState(false);
@@ -71,23 +73,23 @@ export default function ExperimentsPage() {
     setResult(null);
 
     try {
-      // ✅ Groq API via Next.js route
-      const res = await fetch('/api/experiment', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+      const res = await fetch(`${API_URL}/experiments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          type: selectedExp.id, 
-          inputs 
+        body: JSON.stringify({
+          user_id: user?.uid || 'guest',
+          type: selectedExp.id,
+          inputs,
         }),
       });
       const data = await res.json();
-
-      setResult({ 
-        type: selectedExp.title, 
-        content: data.result || 'No result received.', 
-        timestamp: new Date().toLocaleString() 
+      setResult({
+        type: selectedExp.title,
+        content: data.result || 'No result received.',
+        timestamp: new Date().toLocaleString(),
       });
-      toast.success('Experiment completed!');
+      toast.success('Experiment completed! ✅');
     } catch {
       toast.error('Experiment failed. Please try again.');
     } finally {
@@ -145,15 +147,15 @@ export default function ExperimentsPage() {
               exit={{ opacity: 0, y: -20 }}
               className="glass-card p-6"
             >
-              <h3 className="text-base font-bold mb-4 flex items-center gap-2" 
+              <h3 className="text-base font-bold mb-4 flex items-center gap-2"
                 style={{ color: 'var(--text-primary)' }}>
-                <selectedExp.icon size={18} className="text-blue-400" /> 
+                <selectedExp.icon size={18} className="text-blue-400" />
                 {selectedExp.title}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 {selectedExp.inputs.map((inp) => (
                   <div key={inp.key}>
-                    <label className="text-xs font-medium mb-1.5 block" 
+                    <label className="text-xs font-medium mb-1.5 block"
                       style={{ color: 'var(--text-secondary)' }}>
                       {inp.label}
                     </label>
@@ -191,9 +193,9 @@ export default function ExperimentsPage() {
               className="glass-card p-6"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold flex items-center gap-2" 
+                <h3 className="font-bold flex items-center gap-2"
                   style={{ color: 'var(--text-primary)' }}>
-                  <CheckCircle2 size={16} className="text-teal-400" /> 
+                  <CheckCircle2 size={16} className="text-teal-400" />
                   Results: {result.type}
                 </h3>
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>

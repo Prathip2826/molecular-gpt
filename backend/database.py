@@ -28,13 +28,15 @@ class Base(DeclarativeBase):
 
 async def create_tables():
     try:
+        # ✅ Import all models so tables get created
+        from models import models  # noqa
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         print("✅ DB tables ready")
     except Exception as e:
         print(f"⚠️ DB connection issue: {e}")
         print("Starting without DB - API still works")
-
+        
 async def get_db():
     async with AsyncSessionLocal() as session:
         try:

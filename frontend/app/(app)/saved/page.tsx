@@ -1,14 +1,53 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Header } from '@/components/layout/header';
-import { useMoleculeStore } from '@/store/moleculeStore';
+import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { Bookmark, Eye, Trash2, Copy, Atom } from 'lucide-react';
+import { Bookmark, Eye, Trash2, Copy, Atom, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+interface SavedMolecule {
+  id: string;
+  name: string;
+  formula: string;
+  smiles: string;
+  createdAt: string;
+}
+
 export default function SavedPage() {
-  const { molecules, removeMolecule } = useMoleculeStore();
+  const { user } = useAuth();
   const router = useRouter();
+  const [molecules, setMolecules] = useState<SavedMolecule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  useEffect(() => {
+    if (!user) return;
+    fetchMolecules();
+  }, [user]);
+
+  const fetchMolecules = async () => {
+    try {
+      const res = await fetch(`${API_URL}/molecules?user_id=${user?.uid}`);
+      const data = await res.json();
+      setMolecules(data);
+    } catch (e) {
+      console.error('Failed to fetch:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteMolecule = async (id: string) => {
+    try {
+      await fetch(`${API_URL}/molecules/${id}`, { method: 'DELETE' });
+      setMolecules(prev => prev.filter(m => m.id !== id));
+      toast.success('Deleted!');
+    } catch {
+      toast.error('Delete failed');
+    }
+  };
 
   const copy = (smiles: string) => {
     navigator.clipboard.writeText(smiles);
@@ -19,7 +58,11 @@ export default function SavedPage() {
     <>
       <Header title="Saved Molecules" subtitle={`${molecules.length} molecule${molecules.length !== 1 ? 's' : ''} saved`} />
       <main className="p-6 pt-20">
-        {molecules.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center mt-10">
+            <Loader2 className="animate-spin" style={{ color: 'var(--text-muted)' }} />
+          </div>
+        ) : molecules.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24">
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center mb-4">
               <Bookmark size={32} style={{ color: 'var(--text-muted)' }} />
@@ -50,7 +93,7 @@ export default function SavedPage() {
                     <button onClick={() => copy(mol.smiles)} className="p-1.5 rounded-lg hover:bg-white/10">
                       <Copy size={12} style={{ color: 'var(--text-muted)' }} />
                     </button>
-                    <button onClick={() => removeMolecule(mol.id)} className="p-1.5 rounded-lg hover:bg-red-500/10">
+                    <button onClick={() => deleteMolecule(mol.id)} className="p-1.5 rounded-lg hover:bg-red-500/10">
                       <Trash2 size={12} className="text-red-400" />
                     </button>
                   </div>
