@@ -55,7 +55,7 @@ Apply Lipinski Rule of Five:
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
                 json={
-                    "model": "llama-3.1-8b-instant",
+                    "model": "openai/gpt-oss-20b",
                     "messages": [
                         {"role": "system", "content": "You are an expert chemistry AI assistant."},
                         {"role": "user", "content": prompt}

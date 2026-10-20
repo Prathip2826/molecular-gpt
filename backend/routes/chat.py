@@ -65,7 +65,7 @@ async def send_message(session_id: str, data: MessageCreate, db: AsyncSession = 
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
                 json={
-                    "model": "llama-3.1-8b-instant",
+                    "model": "openai/gpt-oss-20b",
                     "messages": [
                         {"role": "system", "content": "You are a helpful chemistry AI assistant specialized in molecular science, drug discovery, and chemical reactions."},
                         {"role": "user", "content": data.message}
@@ -127,7 +127,7 @@ async def simple_chat(data: MessageCreate):
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
                 json={
-                    "model": "llama-3.1-8b-instant",
+                    "model": "openai/gpt-oss-20b",
                     "messages": [
                         {"role": "system", "content": "You are a helpful chemistry AI assistant."},
                         {"role": "user", "content": data.message}
