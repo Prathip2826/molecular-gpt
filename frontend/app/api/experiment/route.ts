@@ -32,7 +32,7 @@ Apply Lipinski Rule of Five. Provide MW, LogP, bioavailability score.`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: 'openai/gpt-oss-20b',
           messages: [
             {
               role: 'system',

@@ -29,7 +29,7 @@ Provide: Structural alerts, organ toxicity, hERG liability, safety rating 1-10.`
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: 'openai/gpt-oss-20b',
           messages: [
             {
               role: 'system',
